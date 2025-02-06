@@ -64,10 +64,9 @@
 
 ; Assumes that hint (if provided) is correct for the given pt
 (define (rival-apply machine pt [hint #f])
-  (define discs (rival-machine-discs machine))
   (set-rival-machine-bumps! machine 0)
   (let loop ([iter 0])
-    (define-values (good? done? bad? stuck? fvec)
+    (define-values (_ done? bad? stuck? fvec)
       (parameterize ([*sampling-iteration* iter]
                      [ground-truth-require-convergence #t])
         (rival-machine-full machine

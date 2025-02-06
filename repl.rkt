@@ -6,9 +6,12 @@
                   bf-precision
                   bigfloat->string
                   bf))
+
 (require "eval/main.rkt"
          "eval/machine.rkt"
+         "ops/all.rkt"
          "utils.rkt")
+
 (provide rival-repl)
 
 (define (create-discs bodies repl)
@@ -67,10 +70,10 @@
       [(cons _ rest) (loop rest)]
       ['() ""])))
 
-(struct repl ([precision #:mutable] context))
+(struct repl ([precision #:mutable] [print-ival? #:mutable] context))
 
 (define (make-repl [precision 53])
-  (repl precision (make-hash)))
+  (repl precision #f (make-hash)))
 
 (define (repl-discretizations repl)
   (list (bf-discretization (repl-precision repl))))
@@ -165,6 +168,32 @@
                                      (cons (== iter) (execution _ (== id) _ time))
                                      (~r (* time 1000) #:precision '(= 1)))]))))
 
+(define (repl-print! repl machine out)
+  (cond
+    [(string? out)
+     ; string => reporting error
+     (displayln out)]
+    [(repl-print-ival? repl)
+     ; printing interval
+     (define discs (rival-machine-discs machine))
+     (define vregs (rival-machine-registers machine))
+     (define rootvec (rival-machine-outputs machine))
+     (for ([root (in-vector rootvec)]
+           [disc (in-vector discs)])
+       (define out (vector-ref vregs root))
+       (define lo ((discretization-convert disc) (ival-lo out)))
+       (define hi ((discretization-convert disc) (ival-hi out)))
+       (display "[")
+       (display (bigfloat->string lo))
+       (display ", ")
+       (display (bigfloat->string hi))
+       (display "]")
+       (newline))]
+    [else
+     ; printing scalar
+     (for ([val (in-vector out)])
+       (displayln (bigfloat->string val)))]))
+
 (define (rival-repl p)
   (let/ec
    k
@@ -179,6 +208,8 @@
           (when (< n 4)
             (raise-user-error 'set "Precision must be an integer greater than 3"))
           (set-repl-precision! repl n)]
+         [`(set print-ival? ,(? boolean? b))
+          (set-repl-print-ival?! repl b)]
          [`(define (,(? symbol? name) ,(? symbol? args) ...)
              ,bodies ...)
           (repl-save-machine! repl name args bodies)]
@@ -186,10 +217,7 @@
           (define machine (repl-get-machine repl name))
           (check-args! name machine vals)
           (define out (repl-apply repl machine vals))
-          (if (string? out)
-              (displayln out)
-              (for ([val (in-vector out)])
-                (displayln (bigfloat->string val))))]
+          (repl-print! repl machine out)]
          [`(explain ,name ,(? (disjoin real? boolean?) vals) ...)
           (define machine (repl-get-machine repl name))
           (check-args! name machine vals)
