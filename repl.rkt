@@ -5,6 +5,7 @@
                   bigfloats-between
                   bf-precision
                   bigfloat->string
+                  bigfloat?
                   bf))
 
 (require "eval/main.rkt"
@@ -168,6 +169,11 @@
                                      (cons (== iter) (execution _ (== id) _ time))
                                      (~r (* time 1000) #:precision '(= 1)))]))))
 
+(define (print-scalar! out)
+  (if (bigfloat? out)
+      (display (bigfloat->string out))
+      (display out)))
+
 (define (repl-print! repl machine out)
   (cond
     [(string? out)
@@ -184,15 +190,16 @@
        (define lo ((discretization-convert disc) (ival-lo out)))
        (define hi ((discretization-convert disc) (ival-hi out)))
        (display "[")
-       (display (bigfloat->string lo))
+       (print-scalar! lo)
        (display ", ")
-       (display (bigfloat->string hi))
+       (print-scalar! hi)
        (display "]")
        (newline))]
     [else
      ; printing scalar
      (for ([val (in-vector out)])
-       (displayln (bigfloat->string val)))]))
+       (print-scalar! val)
+       (newline))]))
 
 (define (rival-repl p)
   (let/ec
