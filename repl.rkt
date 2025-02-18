@@ -85,9 +85,10 @@
       (rival-compile (list (fix-up-fpcore name)) '() (repl-discretizations repl))))
 
 (define (->bf x)
-  (if (number? x)
-      (bf x)
-      x))
+  (match x
+    [(list 'ival lo hi) (ival (->bf lo) (->bf hi))]
+    [(? number?) (bf x)]
+    [_ x]))
 
 (define (repl-apply repl machine vals)
   (with-handlers ([exn:rival:invalid? (const "Domain error")]
@@ -201,6 +202,16 @@
        (print-scalar! val)
        (newline))]))
 
+(define (repl-scalar? v)
+  (or (real? v) (boolean? v)))
+
+(define (repl-value? v)
+  (match v
+    [(list 'ival (? repl-scalar?) (? repl-scalar?)) #t]
+    [(? real?) #t]
+    [(? boolean?) #t]
+    [_ #f]))
+
 (define (rival-repl p)
   (let/ec
    k
@@ -220,7 +231,7 @@
          [`(define (,(? symbol? name) ,(? symbol? args) ...)
              ,bodies ...)
           (repl-save-machine! repl name args bodies)]
-         [`(eval ,name ,(? (disjoin real? boolean?) vals) ...)
+         [`(eval ,name ,(? repl-value? vals) ...)
           (define machine (repl-get-machine repl name))
           (check-args! name machine vals)
           (define out (repl-apply repl machine vals))

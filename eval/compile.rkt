@@ -16,6 +16,8 @@
 
 (define (fn->ival-fn node)
   (match node
+    [#t (list ival-true)]
+    [#f (list ival-false)]
     [(? number?)
      (if (ival-point? (real->ival node))
          (list (ival-const node))

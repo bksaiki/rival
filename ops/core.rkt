@@ -131,7 +131,7 @@
     [(and (boolean? x) (boolean? y))
      (define fix? (equal? x y))
      (ival (endpoint x fix?) (endpoint y fix?) #f #f)]
-    [else (error 'ival "Invalid interval endpoints" x y)]))
+    [else (error 'ival "Invalid interval endpoints ~a ~a" x y)]))
 
 (define (mk-ival x)
   (mk-big-ival x x))

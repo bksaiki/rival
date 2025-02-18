@@ -60,7 +60,7 @@
        (set-rival-machine-profile-ptr! machine 0))]))
 
 (define (ival-real x)
-  (ival x))
+  (if (ival? x) x (ival x)))
 
 ; Assumes that hint (if provided) is correct for the given pt
 (define (rival-apply machine pt [hint #f])
