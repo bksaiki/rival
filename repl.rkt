@@ -2,10 +2,15 @@
 
 (require (only-in math/private/bigfloat/mpfr
                   bfcopy
+                  bfprev
+                  bfnext
                   bigfloats-between
                   bf-precision
+                  bigfloat-precision
                   bigfloat->string
                   bigfloat?
+                  bfrational?
+                  bfzero?
                   bf))
 
 (require "eval/main.rkt"
@@ -170,36 +175,40 @@
                                      (cons (== iter) (execution _ (== id) _ time))
                                      (~r (* time 1000) #:precision '(= 1)))]))))
 
-(define (print-scalar! out)
-  (if (bigfloat? out)
-      (display (bigfloat->string out))
-      (display out)))
-
-(define (repl-print! repl machine out)
+(define (repl-print! repl out)
   (cond
     [(string? out)
      ; string => reporting error
      (displayln out)]
     [(repl-print-ival? repl)
-     ; printing interval
-     (define discs (rival-machine-discs machine))
-     (define vregs (rival-machine-registers machine))
-     (define rootvec (rival-machine-outputs machine))
-     (for ([root (in-vector rootvec)]
-           [disc (in-vector discs)])
-       (define out (vector-ref vregs root))
-       (define lo ((discretization-convert disc) (ival-lo out)))
-       (define hi ((discretization-convert disc) (ival-hi out)))
-       (display "[")
-       (print-scalar! lo)
-       (display ", ")
-       (print-scalar! hi)
-       (display "]")
+     ; printing interval (rounding envelope of output)
+     (for ([val (in-vector out)])
+       (cond
+         [(bigfloat? val)
+          (cond
+            [(and (bfrational? val) (not (bfzero? val)))
+             ; real, non-zero => decompose into interval
+             (define p (bigfloat-precision val))
+             (parameterize ([bf-precision (add1 p)])
+               (define prev (bfprev val))
+               (define next (bfnext val))
+               (display "[")
+               (display (bigfloat->string prev))
+               (display ", ")
+               (display (bigfloat->string next))
+               (display "]"))]
+            [else
+             ; zero or non-real
+             (display (bigfloat->string val))])]
+         [else
+          (display val)])
        (newline))]
     [else
      ; printing scalar
      (for ([val (in-vector out)])
-       (print-scalar! val)
+       (if (bigfloat? val)
+           (display (bigfloat->string val))
+           (display val))
        (newline))]))
 
 (define (repl-scalar? v)
@@ -235,7 +244,7 @@
           (define machine (repl-get-machine repl name))
           (check-args! name machine vals)
           (define out (repl-apply repl machine vals))
-          (repl-print! repl machine out)]
+          (repl-print! repl out)]
          [`(explain ,name ,(? (disjoin real? boolean?) vals) ...)
           (define machine (repl-get-machine repl name))
           (check-args! name machine vals)
