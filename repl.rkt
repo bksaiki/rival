@@ -267,6 +267,7 @@
           (newline)
           (displayln "Commands:")
           (displayln "  (set precision <n>)                      Set working precision to n")
+          (displayln "  (set print-ival? <#t/#f>)                Prints the rounding envelope when enabled")
           (displayln "  (define (<name> <args> ...) <body> ...)  Define a named function")
           (displayln "  (eval <name> <vals> ...)                 Evaluate a named function")
           (displayln
