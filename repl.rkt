@@ -76,10 +76,10 @@
       [(cons _ rest) (loop rest)]
       ['() ""])))
 
-(struct repl ([precision #:mutable] [print-ival? #:mutable] context))
+(struct repl ([precision #:mutable] [print-ival? #:mutable] [print-exact? #:mutable] context))
 
 (define (make-repl [precision 53])
-  (repl precision #f (make-hash)))
+  (repl precision #f #f (make-hash)))
 
 (define (repl-discretizations repl)
   (list (bf-discretization (repl-precision repl))))
@@ -175,37 +175,56 @@
                                      (cons (== iter) (execution _ (== id) _ time))
                                      (~r (* time 1000) #:precision '(= 1)))]))))
 
-(define (repl-print! repl out)
+(define (bigfloat->interval val exact?)
+  (cond
+    [(or (bfzero? val) exact?)
+     ; exact value
+     (values val val)]
+    [else
+     ; non-zero, inexact
+     (define p (bigfloat-precision val))
+     (parameterize ([bf-precision (add1 p)])
+       (values (bfprev val) (bfnext val)))]))
+
+(define (repl-print! repl machine out)
   (cond
     [(string? out)
      ; string => reporting error
      (displayln out)]
     [(repl-print-ival? repl)
      ; printing interval (rounding envelope of output)
-     (for ([val (in-vector out)])
+     (define vregs (rival-machine-registers machine))
+     (define rootvec (rival-machine-outputs machine))
+     (for ([root (in-vector rootvec)] [val (in-vector out)])
+       (define reg-val (vector-ref vregs root))
+       (define exact? (and (ival-lo-fixed? reg-val) (ival-hi-fixed? reg-val)))
        (cond
          [(bigfloat? val)
           (cond
-            [(and (bfrational? val) (not (bfzero? val)))
-             ; real, non-zero => decompose into interval
-             (define p (bigfloat-precision val))
-             (parameterize ([bf-precision (add1 p)])
-               (define prev (bfprev val))
-               (define next (bfnext val))
-               (display "[")
-               (display (bigfloat->string prev))
-               (display ", ")
-               (display (bigfloat->string next))
-               (display "]"))]
+            [(bfrational? val)
+             ; real value
+             (define-values (lo hi) (bigfloat->interval val exact?))
+             (display "[")
+             (display (bigfloat->string lo))
+             (display ", ")
+             (display (bigfloat->string hi))
+             (display "]")]
             [else
-             ; zero or non-real
+             ; non-real
              (display (bigfloat->string val))])]
          [else
           (display val)])
        (newline))]
     [else
      ; printing scalar
-     (for ([val (in-vector out)])
+     (define vregs (rival-machine-registers machine))
+     (define rootvec (rival-machine-outputs machine))
+     (for ([root (in-vector rootvec)] [val (in-vector out)])
+       (define reg-val (vector-ref vregs root))
+       (when (and (repl-print-exact? repl)
+                  (ival-lo-fixed? reg-val)
+                  (ival-hi-fixed? reg-val))
+         (display "!"))
        (if (bigfloat? val)
            (display (bigfloat->string val))
            (display val))
@@ -237,6 +256,8 @@
           (set-repl-precision! repl n)]
          [`(set print-ival? ,(? boolean? b))
           (set-repl-print-ival?! repl b)]
+         [`(set print-exact? ,(? boolean? b))
+          (set-repl-print-exact?! repl b)]
          [`(define (,(? symbol? name) ,(? symbol? args) ...)
              ,bodies ...)
           (repl-save-machine! repl name args bodies)]
@@ -244,7 +265,7 @@
           (define machine (repl-get-machine repl name))
           (check-args! name machine vals)
           (define out (repl-apply repl machine vals))
-          (repl-print! repl out)]
+          (repl-print! repl machine out)]
          [`(explain ,name ,(? (disjoin real? boolean?) vals) ...)
           (define machine (repl-get-machine repl name))
           (check-args! name machine vals)
@@ -268,6 +289,7 @@
           (displayln "Commands:")
           (displayln "  (set precision <n>)                      Set working precision to n")
           (displayln "  (set print-ival? <#t/#f>)                Prints the rounding envelope when enabled")
+          (displayln "  (set print-exact? <#t/#f>)               Prints whether the output is exact")
           (displayln "  (define (<name> <args> ...) <body> ...)  Define a named function")
           (displayln "  (eval <name> <vals> ...)                 Evaluate a named function")
           (displayln
