@@ -15,10 +15,12 @@
   (define n (or precision (bf-precision)))
   (discretization n
                   (lambda (x)
-                    (parameterize ([bf-precision n])
+                    (parameterize ([bf-precision n]
+                                   [bf-rounding-mode 'nearest])
                       (if (equal? (bigfloats-between 0.bf x) 1)
                           (bf 0)
                           (bfcopy x))))
                   (lambda (x y)
-                    (parameterize ([bf-precision n])
+                    (parameterize ([bf-precision n]
+                                   [bf-rounding-mode 'nearest])
                       (abs (bigfloats-between x y))))))

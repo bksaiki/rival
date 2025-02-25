@@ -1,17 +1,19 @@
 #lang racket
 
-(require (only-in math/private/bigfloat/mpfr
+(require (only-in math/bigfloat
                   bfcopy
                   bfprev
                   bfnext
                   bigfloats-between
                   bf-precision
                   bigfloat-precision
+                  bigfloat-significand
                   bigfloat->string
                   bigfloat?
                   bfrational?
                   bfzero?
-                  bf))
+                  bf
+                  bf=))
 
 (require "eval/main.rkt"
          "eval/machine.rkt"
@@ -89,9 +91,30 @@
       (hash-ref (repl-context repl) name)
       (rival-compile (list (fix-up-fpcore name)) '() (repl-discretizations repl))))
 
+; Assumes this interval represents a rounding envelope.
+(define (->ival lo hi)
+  ; compute the endpoints of the rounding envelope
+  (define-values (lo* hi*)
+    (parameterize ([bf-precision (add1 (bf-precision))])
+      (values (->bf lo) (->bf hi))))
+  ; if the endpoints are equal, return the exact value
+  (cond
+    [(bf= lo* hi*)
+     (ival lo* hi*)]
+    [else
+     ; if the mantissa is even, perturb inwards
+     ; this isn't entirely sound
+     (when (odd? (bigfloat-significand lo*))
+       (parameterize ([bf-precision 1024])
+         (set! lo* (bfnext lo*))))
+     (when (odd? (bigfloat-significand hi*))
+       (parameterize ([bf-precision 1024])
+         (set! hi* (bfprev hi*))))
+     (ival lo* hi*)]))
+
 (define (->bf x)
   (match x
-    [(list 'ival lo hi) (ival (->bf lo) (->bf hi))]
+    [(list 'ival lo hi) (->ival lo hi)]
     [(? number?) (bf x)]
     [_ x]))
 
@@ -175,15 +198,14 @@
                                      (cons (== iter) (execution _ (== id) _ time))
                                      (~r (* time 1000) #:precision '(= 1)))]))))
 
-(define (bigfloat->interval val exact?)
+(define (bigfloat->interval val prec exact?)
   (cond
     [(or (bfzero? val) exact?)
      ; exact value
      (values val val)]
     [else
      ; non-zero, inexact
-     (define p (bigfloat-precision val))
-     (parameterize ([bf-precision (add1 p)])
+     (parameterize ([bf-precision (add1 prec)])
        (values (bfprev val) (bfnext val)))]))
 
 (define (repl-print! repl machine out)
@@ -203,7 +225,7 @@
           (cond
             [(bfrational? val)
              ; real value
-             (define-values (lo hi) (bigfloat->interval val exact?))
+             (define-values (lo hi) (bigfloat->interval val (repl-precision repl) exact?))
              (display "[")
              (display (bigfloat->string lo))
              (display ", ")
