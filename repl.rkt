@@ -105,10 +105,13 @@
      ; if the mantissa is even, perturb inwards
      ; this isn't entirely sound
      (when (odd? (bigfloat-significand lo*))
-       (parameterize ([bf-precision 1024])
+       ; TODO: something is very buggy here;
+       ; it should be the case that x + 0 produces the same rounding envelope
+       ; as x, but it takes a number of iterations to compute this
+       (parameterize ([bf-precision 4096])
          (set! lo* (bfnext lo*))))
      (when (odd? (bigfloat-significand hi*))
-       (parameterize ([bf-precision 1024])
+       (parameterize ([bf-precision 4096])
          (set! hi* (bfprev hi*))))
      (ival lo* hi*)]))
 

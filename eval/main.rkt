@@ -72,6 +72,7 @@
         (rival-machine-full machine
                             (vector-map ival-real pt)
                             (or hint (rival-machine-default-hint machine)))))
+    (eprintf "~a\n" iter)
     (cond
       [bad? (raise (exn:rival:invalid "Invalid input" (current-continuation-marks) pt))]
       [done? fvec]
