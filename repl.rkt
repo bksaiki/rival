@@ -92,32 +92,30 @@
       (rival-compile (list (fix-up-fpcore name)) '() (repl-discretizations repl))))
 
 ; Assumes this interval represents a rounding envelope.
-(define (->ival lo hi)
+(define (->ival lo hi [p (bf-precision)])
   ; compute the endpoints of the rounding envelope
   (define-values (lo* hi*)
-    (parameterize ([bf-precision (add1 (bf-precision))])
+    (parameterize ([bf-precision p])
       (values (->bf lo) (->bf hi))))
   ; if the endpoints are equal, return the exact value
   (cond
     [(bf= lo* hi*)
      (ival lo* hi*)]
     [else
+     ; NOTE: this isn't entirely sound
      ; if the mantissa is even, perturb inwards
-     ; this isn't entirely sound
      (when (odd? (bigfloat-significand lo*))
-       ; TODO: something is very buggy here;
-       ; it should be the case that x + 0 produces the same rounding envelope
-       ; as x, but it takes a number of iterations to compute this
-       (parameterize ([bf-precision 4096])
+       (parameterize ([bf-precision (max 4096 p)])
          (set! lo* (bfnext lo*))))
      (when (odd? (bigfloat-significand hi*))
-       (parameterize ([bf-precision 4096])
+       (parameterize ([bf-precision (max 4096 p)])
          (set! hi* (bfprev hi*))))
      (ival lo* hi*)]))
 
 (define (->bf x)
   (match x
     [(list 'ival lo hi) (->ival lo hi)]
+    [(list 'ival lo hi p) (->ival lo hi p)]
     [(? number?) (bf x)]
     [_ x]))
 
@@ -261,6 +259,7 @@
 (define (repl-value? v)
   (match v
     [(list 'ival (? repl-scalar?) (? repl-scalar?)) #t]
+    [(list 'ival (? repl-scalar?) (? repl-scalar?) (? nonnegative-integer?)) #t]
     [(? real?) #t]
     [(? boolean?) #t]
     [_ #f]))
