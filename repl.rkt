@@ -6,6 +6,7 @@
                   bfnext
                   bigfloats-between
                   bf-precision
+                  bf-rounding-mode
                   bigfloat-precision
                   bigfloat-significand
                   bigfloat->string
@@ -96,7 +97,7 @@
   ; compute the endpoints of the rounding envelope
   (define-values (lo* hi*)
     (parameterize ([bf-precision p])
-      (values (->bf lo) (->bf hi))))
+      (values (bf lo) (bf hi))))
   ; if the endpoints are equal, return the exact value
   (cond
     [(bf= lo* hi*)
@@ -112,11 +113,31 @@
          (set! hi* (bfprev hi*))))
      (ival lo* hi*)]))
 
+(define (real->ival val)
+  (define lo
+    (parameterize ([bf-rounding-mode 'down])
+      (bf val)))
+  (define hi
+    (parameterize ([bf-rounding-mode 'up])
+      (bf val)))
+  (ival lo hi))
+
+(define (refine-real v)
+  (define p (bf-precision))
+  (let/ec return
+    (let loop ([x (real->ival v)] [p (* 2 p)])
+      (cond
+        [(bf= (ival-lo x) (ival-hi x)) x]
+        [(>= p (*rival-max-precision*)) (return x)]
+        [else
+         (define x* (parameterize ([bf-precision p]) (real->ival v)))
+         (loop x* (* 2 p))]))))
+
 (define (->bf x)
   (match x
     [(list 'ival lo hi) (->ival lo hi)]
     [(list 'ival lo hi p) (->ival lo hi p)]
-    [(? number?) (bf x)]
+    [(? number?) (refine-real x)]
     [_ x]))
 
 (define (repl-apply repl machine vals)
